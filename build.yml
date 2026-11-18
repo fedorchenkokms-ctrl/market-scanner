@@ -1,0 +1,61 @@
+# Автоматическая сборка MarketScanner.exe на серверах GitHub (Windows).
+# Запускается после каждого обновления файлов в репозитории или вручную: Actions → Сборка → Run workflow.
+name: Сборка MarketScanner.exe
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Установка библиотек
+        run: pip install numpy pandas tzdata pystray pillow pyinstaller
+
+      - name: Значок
+        run: python make_icon.py
+
+      - name: Сборка exe
+        run: >
+          pyinstaller --noconfirm --onefile --windowed
+          --name MarketScanner --icon icon.ico --add-data "icon.ico;."
+          --hidden-import pystray._win32
+          app.py
+
+      - name: Самопроверка (окно + прогон движка на синтетическом рынке)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\MarketScanner.exe -ArgumentList "--selftest" -PassThru
+          if (-not $p.WaitForExit(600000)) { $p.Kill(); Write-Error "Самопроверка зависла"; exit 1 }
+          Get-Content dist\selftest_result.txt
+          if ($p.ExitCode -ne 0) { exit 1 }
+          Remove-Item dist\selftest_result.txt
+
+      - name: Файл для скачивания (Actions → эта сборка → Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: MarketScanner
+          path: dist/MarketScanner.exe
+
+      - name: Релиз (справа на главной странице репозитория → Releases)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: MarketScanner, сборка ${{ github.run_number }}
+          files: dist/MarketScanner.exe
+          body: |
+            Скачайте MarketScanner.exe, положите в отдельную папку (например C:\MarketScanner) и запустите.
+            Рядом сами появятся config.json и папка scanner_data. При обновлении просто замените exe —
+            настройки, база истории и память модели сохранятся.

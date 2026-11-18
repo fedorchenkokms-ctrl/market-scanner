@@ -1,0 +1,11 @@
+# личные настройки с ключами и данные сканера — в репозиторий не загружаются
+config.json
+gui_settings.json
+scanner_data*/
+export/
+*.pyc
+__pycache__/
+build/
+dist/
+icon.ico
+selftest_result.txt
